@@ -1,6 +1,6 @@
 module github.com/mymdz/swag
 
-replace github.com/swaggo/swag => github.com/mymdz/swag v-request-parser-2
+replace github.com/swaggo/swag => github.com/mymdz/swag v1.7.0
 
 require (
 	github.com/KyleBanks/depth v1.2.1
@@ -9,7 +9,6 @@ require (
 	github.com/gin-gonic/gin v1.4.0
 	github.com/go-openapi/jsonreference v0.19.3
 	github.com/go-openapi/spec v0.19.4
-	github.com/modern-go/reflect2 v1.0.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/stretchr/testify v1.4.0
 	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
