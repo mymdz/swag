@@ -1,6 +1,6 @@
 module github.com/mymdz/swag
 
-replace github.com/swaggo/swag => ./
+replace github.com/swaggo/swag => github.com/mymdz/swag v-request-parser-2
 
 require (
 	github.com/KyleBanks/depth v1.2.1
