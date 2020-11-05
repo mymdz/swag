@@ -2,8 +2,8 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/swaggo/swag/testdata/alias_import/data"
-	"github.com/swaggo/swag/testdata/alias_type/types"
+	"github.com/mymdz/swag/testdata/alias_import/data"
+	"github.com/mymdz/swag/testdata/alias_type/types"
 	"log"
 )
 

@@ -1,7 +1,5 @@
 module github.com/mymdz/swag
 
-replace github.com/swaggo/swag => github.com/mymdz/swag v1.7.0
-
 require (
 	github.com/KyleBanks/depth v1.2.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
