@@ -1,13 +1,16 @@
 package swag
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"go/ast"
 	goparser "go/parser"
+	"go/printer"
 	"go/token"
 	"net/http"
 	"os"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -88,6 +91,8 @@ func (operation *Operation) ParseComment(comment string, astFile *ast.File) erro
 		err = operation.ParseProduceComment(lineRemainder)
 	case "@param":
 		err = operation.ParseParamComment(lineRemainder, astFile)
+	case "@apirequest":
+		err = operation.ParseRequestStructure(lineRemainder, astFile)
 	case "@success", "@failure":
 		err = operation.ParseResponseComment(lineRemainder, astFile)
 	case "@header":
@@ -283,6 +288,153 @@ func (operation *Operation) ParseParamComment(commentLine string, astFile *ast.F
 	}
 	operation.Operation.Parameters = append(operation.Operation.Parameters, param)
 	return nil
+}
+
+func (operation *Operation) ParseRequestStructure(commentLine string, astFile *ast.File) error {
+	refType, typeSpec, err := operation.registerSchemaType(commentLine, astFile)
+	if err != nil {
+		return err
+	}
+	structType, ok := typeSpec.Type.(*ast.StructType)
+	if !ok {
+		return fmt.Errorf("%s is not supported type", refType)
+	}
+
+	typeSplitted := strings.Split(commentLine, ".")
+	if len(typeSplitted) == 0 || typeSplitted[0] == "" {
+		return fmt.Errorf("passed type is empty")
+	}
+
+	var structFset *token.FileSet
+	for _, fset := range operation.parser.fsets {
+		var structNameBuf bytes.Buffer
+		err := printer.Fprint(&structNameBuf, fset, typeSpec)
+		if err != nil {
+			continue
+		}
+
+		if strings.Contains(structNameBuf.String(), typeSplitted[len(typeSplitted)-1]) {
+			structFset = fset
+			break
+		}
+	}
+
+	if structFset == nil {
+		return fmt.Errorf("file with type %s not found", commentLine)
+	}
+
+	for _, f := range structType.Fields.List {
+		var typeNameBuf bytes.Buffer
+		err := printer.Fprint(&typeNameBuf, structFset, f.Type)
+		if err != nil || f.Tag == nil {
+			continue
+		}
+
+		reflectTag := reflect.StructTag(strings.Replace(f.Tag.Value, "`", "", -1))
+
+		param, err := analyzeRequestField(typeNameBuf.String(), reflectTag)
+
+		if err != nil {
+			continue
+		}
+
+		operation.Operation.Parameters = append(operation.Operation.Parameters, *param)
+	}
+
+	return nil
+}
+
+func analyzeRequestField(typeName string, tag reflect.StructTag) (*spec.Parameter, error) {
+	fieldName, ok := tag.Lookup("api_name")
+	if !ok {
+		return nil, fmt.Errorf("no api_name tag to parse the field")
+	}
+
+	var (
+		isOptional bool
+		isArray    bool
+		defaultValue interface{}
+		enums []interface{}
+		dbSection string
+		dbField string
+		comment string
+	)
+	paramIn := "query"
+	paramType := "string"
+
+	if typeName[0] == '*' {
+		isOptional = true
+		typeName = typeName[1:]
+	}
+
+	if typeName[0:2] == "[]" {
+		isArray = true
+		typeName = typeName[2:]
+	}
+
+	if tagParamIn, ok := tag.Lookup("api_param_in"); ok {
+		paramIn = tagParamIn
+	}
+
+	if tagDefaultValue, ok := tag.Lookup("api_default"); ok {
+		defaultValue = tagDefaultValue
+		isOptional = true
+	}
+
+	if tagDbSection, ok := tag.Lookup("db_section"); ok {
+		dbSection = tagDbSection
+	}
+
+	if tagDbField, ok := tag.Lookup("db_field_name"); ok {
+		dbField = tagDbField
+	}
+
+	if tagApiComment, ok := tag.Lookup("api_comment"); ok {
+		comment = tagApiComment
+	}
+
+	if typeName == "bool" {
+		paramType = "boolean"
+	}
+
+	if accepted, ok := tag.Lookup("api_accepted"); ok {
+		acceptedArr := strings.Split(accepted, ",")
+		for _, acceptedValue := range acceptedArr {
+			enums = append(enums, acceptedValue)
+			if dbSection == "order_by" {
+				enums = append(enums, acceptedValue+":asc")
+				enums = append(enums, acceptedValue+":desc")
+			}
+		}
+	}
+
+	if comment == "" {
+		if dbSection != "" {
+			switch dbSection {
+			case "limit":
+				comment = "Limit - max count of rows to return"
+			case "offset":
+				comment = "Offset"
+			case "order_by":
+				comment = "Field to order by. Add `:asc` or `:desc` suffix to change the sort direction."
+				if isArray {
+					comment += " Can accept multiple comma-separated values"
+				}
+			}
+		} else if dbField != "" {
+			if isArray {
+				comment = "Comma-separated values to filter by " + dbField
+			} else {
+				comment = "Filter by " + dbField
+			}
+		}
+	}
+
+	param := createParameter(paramIn, comment, fieldName, paramType, !isOptional)
+	param.Enum = enums
+	param.Default = defaultValue
+
+	return &param, nil
 }
 
 func (operation *Operation) registerSchemaType(schemaType string, astFile *ast.File) (string, *ast.TypeSpec, error) {

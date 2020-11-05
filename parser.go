@@ -42,6 +42,8 @@ type Parser struct {
 	// files is a map that stores map[real_go_file_path][astFile]
 	files map[string]*ast.File
 
+	fsets map[string]*token.FileSet
+
 	// TypeDefinitions is a map that stores [package name][type name][*ast.TypeSpec]
 	TypeDefinitions map[string]map[string]*ast.TypeSpec
 
@@ -95,6 +97,7 @@ func New(options ...func(*Parser)) *Parser {
 			},
 		},
 		files:                make(map[string]*ast.File),
+		fsets:                make(map[string]*token.FileSet),
 		TypeDefinitions:      make(map[string]map[string]*ast.TypeSpec),
 		ImportAliases:        make(map[string]map[string]*ast.ImportSpec),
 		CustomPrimitiveTypes: make(map[string]string),
@@ -1551,6 +1554,7 @@ func (parser *Parser) parseFile(path string) error {
 		}
 
 		parser.files[path] = astFile
+		parser.fsets[path] = fset
 	}
 	return nil
 }
