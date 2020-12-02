@@ -358,6 +358,7 @@ func analyzeRequestField(typeName string, tag reflect.StructTag) (*spec.Paramete
 		dbSection string
 		dbField string
 		comment string
+		defaultValueNotice string
 	)
 	paramIn := "query"
 	paramType := "string"
@@ -378,6 +379,7 @@ func analyzeRequestField(typeName string, tag reflect.StructTag) (*spec.Paramete
 
 	if tagDefaultValue, ok := tag.Lookup("api_default"); ok {
 		defaultValue = tagDefaultValue
+		defaultValueNotice = fmt.Sprintf(" (*if not specified, defaults to*: %s)", tagDefaultValue)
 		isOptional = true
 	}
 
@@ -429,6 +431,8 @@ func analyzeRequestField(typeName string, tag reflect.StructTag) (*spec.Paramete
 			}
 		}
 	}
+
+	comment += defaultValueNotice
 
 	param := createParameter(paramIn, comment, fieldName, paramType, !isOptional)
 	param.Enum = enums
